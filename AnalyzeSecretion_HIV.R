@@ -1,6 +1,9 @@
+rm(list=ls())
+
 # Analyze Secretion Template File
 library(stringr)
 library(foreign)
+library(data.table)
 reorganizeTable <- function(data, baseName=NA, convertToNumeric=TRUE, nameCol='Measurement', valueCol='Value')
 {
      library(plyr)
@@ -46,15 +49,19 @@ reorganizeTable <- function(data, baseName=NA, convertToNumeric=TRUE, nameCol='M
 }
 
 path <- '/Users/jaywarrick/Desktop/A Sandbox/Test/20140805/File - Results/x0_y0.txt'
-path <- '/Users/jaywarrick/Desktop/A Sandbox/Test/20140923 - HIV Test/File - Results/x0_y0.txt'
+path <- '/Users/jaywarrick/Desktop/A Sandbox/Test/Dataset Name/File - Results/x0_y0.txt'
 
 data <- reorganizeTable(read.arff(path), convertToNumeric=FALSE);
+
+# Filter weird data
+data <- subset(data, ratio > 0)
 
 data$HIV <- as.character(data$HIV)
 HIVLevels <- unique(data$HIV)
 data$HIVNumber <- as.numeric(str_extract(as.character(data$HIV), "\\d+\\.*\\d*")) # Just grabs the number portion of the string, leaving out the units
-data$Ratio[data$Ratio > 0] <- log(data$Ratio[data$Ratio > 0])
-data <- subset(data, Ratio > 0)
+data$logRatio <- 0
+data$logRatio <- log(data$ratio)
+
 
 # # Grab whatever portion of the data you are interested in...
 # calData <- subset(data, Cells=='None')
@@ -63,11 +70,10 @@ data <- subset(data, Ratio > 0)
 
 # Summarize the data
 summary <- data.frame()
-for(hiv in HIVLevels)
-{
-     temp <- subset(data, HIV==hiv)
-     summary <- rbind(summary, data.frame(HIV=hiv, RatioMean=median(temp$Ratio), RatioMad=mad(temp$Ratio)))
-}
+temp <- data.table(data)
+summary <- temp[,lapply(.SD,mean),by=c('HIV')][,c('HIV','ratio','logRatio'),with=FALSE]
+
+data$signal <- data$secretionSig-data$secretionMed
 
 # Plot the histograms
 plot(c(), c(), xlim=c(0.001,100), ylim=range(0,8), xlab='HIV Concentration [virus/well]', ylab='Signal per Bead [au]', log='x')
@@ -87,21 +93,40 @@ for(hiv in HIVLevels)
      }
 }
 
-# Plot the histograms
-plot(density(data$Ratio), col=rgb(1,1,1,0.5), xlim=c(0,5), ylim=range(0,2), xlab='Signal per Bead [au]', ylab='Density', main='')
+# Plot the histograms of signal ratios
+plot(density(data$Ratio), col=rgb(1,1,1,0.5), xlim=c(0,3.5), ylim=range(0,1.5), xlab='Signal per Bead [au]', ylab='Density', main='')
 cols <- seq(0,1,length.out=length(HIVLevels)+1)
 i <- 1
 for(hiv in HIVLevels)
 {
      temp <- subset(data, HIV==hiv)
-     lines(density(temp$Ratio), col=gray(cols[i]), lwd=2)
+     lines(density(temp$Ratio, adjust=0.75), col=gray(cols[i]), lwd=2)
      print(hiv)
      print(cols[i])
      i = i + 1;
 }
 legend('topright', legend=HIVLevels, col=gray(cols[1:length(HIVLevels)]), lwd=2)
 
+# Plot the histograms of signals instead of ratios
+plot(density(data$signal), col=rgb(1,1,1,0.5))#, xlim=c(0,3.5), ylim=range(0,1.5), xlab='Signal per Bead [au]', ylab='Density', main='')
+cols <- seq(0,1,length.out=length(HIVLevels)+1)
+i <- 1
+for(hiv in (HIVLevels[c(1,2,3,4,5)]))
+{
+     temp <- subset(data, HIV==hiv)
+     if(i == 1)
+     {
+          plot(density(data$signal), col=rgb(1,1,1,0.5), xlim=c(0,600), ylim=range(0,0.01), xlab='Microwell Signal [au]', ylab='Density', main='')
+     }
+     lines(density(temp$signal, adjust=0.75), col=gray(cols[i]), lwd=2)
+     print(hiv)
+     print(cols[i])
+     i = i + 1;
+}
+legend('topright', legend=HIVLevels, col=gray(cols[1:length(HIVLevels)]), lwd=2)
 
+# temp <- subset(data, HIV=='3')
+# hist(temp$Ratio, col=gray(cols[3]), lwd=2, breaks=40)
 
 weird <- subset(data, Ratio < 0)
 print(weird)
