@@ -62,7 +62,6 @@ data$HIVNumber <- as.numeric(str_extract(as.character(data$HIV), "\\d+\\.*\\d*")
 data$logRatio <- 0
 data$logRatio <- log(data$ratio)
 
-
 # # Grab whatever portion of the data you are interested in...
 # calData <- subset(data, Cells=='None')
 # LNCaPData <- subset(data, Cells=='LNCaP')
@@ -71,36 +70,37 @@ data$logRatio <- log(data$ratio)
 # Summarize the data
 summary <- data.frame()
 temp <- data.table(data)
-summary <- temp[,lapply(.SD,mean),by=c('HIV')][,c('HIV','ratio','logRatio'),with=FALSE]
-
-data$signal <- data$secretionSig-data$secretionMed
+data$signal <- log(data$secretionSig)-log(data$secretionMed)
+bg <- subset(data, HIV=='0')
+#summary <- temp[,lapply(.SD,mean),by=c('HIV')][,c('HIV','ratio','logRatio'),with=FALSE]
+summary <- temp[,list(mean=mean(signal), mad=mad(signal), sd=sd(signal), p=t.test(x=signal, y=bg$signal)$p.value, standard.score=(mean(signal)-mean(bg$signal))/mad(bg$signal), n.microwells=length(signal)), by=c('HIV')]
+data$signal <- log(data$secretionSig)-log(data$secretionMed)
 
 # Plot the histograms
-plot(c(), c(), xlim=c(0.001,100), ylim=range(0,8), xlab='HIV Concentration [virus/well]', ylab='Signal per Bead [au]', log='x')
-for(hiv in HIVLevels)
+plot(c(), c(), xlim=c(0,10), ylim=range(0,15), xlab='HIV Concentration [virus/well]', ylab='Signal per Bead [au]')
+for(hiv in unique(data$HIVNumber))
 {
-     temp <- subset(data, HIV==hiv)
-     HIVNumber <- as.numeric(str_extract(as.character(hiv), "\\d+\\.*\\d*"))
+     temp <- subset(data, HIVNumber==hiv)
      if(hiv=='0')
      {
-          points(temp$HIVNumber + 0.001, temp$Ratio, pch=20, col=rgb(0,0,0,0.02))
-          points(HIVNumber + 0.001, mean(temp$Ratio), pch=20, col='red')
+          points(temp$HIVNumber + 0.001, temp$ratio, pch=20, col=rgb(0,0,0,0.2))
+          points(temp$HIVNumber[1] + 0.001, mean(temp$ratio), pch=20, col='red')
      }
      else
      {
-          points(temp$HIVNumber, temp$Ratio, pch=20, col=rgb(0,0,0,0.02))
-          points(HIVNumber, mean(temp$Ratio), pch=20, col='red')
+          points(temp$HIVNumber, temp$ratio, pch=20, col=rgb(0,0,0,0.2))
+          points(temp$HIVNumber[1], mean(temp$ratio), pch=20, col='red')
      }
 }
 
 # Plot the histograms of signal ratios
-plot(density(data$Ratio), col=rgb(1,1,1,0.5), xlim=c(0,3.5), ylim=range(0,1.5), xlab='Signal per Bead [au]', ylab='Density', main='')
+plot(density(data$ratio), col=rgb(1,1,1,0.5), xlim=c(0,25), ylim=range(0,0.3), xlab='Signal per Bead [au]', ylab='Density', main='')
 cols <- seq(0,1,length.out=length(HIVLevels)+1)
 i <- 1
 for(hiv in HIVLevels)
 {
      temp <- subset(data, HIV==hiv)
-     lines(density(temp$Ratio, adjust=0.75), col=gray(cols[i]), lwd=2)
+     lines(density(temp$ratio, adjust=0.75), col=gray(cols[i]), lwd=2)
      print(hiv)
      print(cols[i])
      i = i + 1;
@@ -108,15 +108,16 @@ for(hiv in HIVLevels)
 legend('topright', legend=HIVLevels, col=gray(cols[1:length(HIVLevels)]), lwd=2)
 
 # Plot the histograms of signals instead of ratios
-plot(density(data$signal), col=rgb(1,1,1,0.5))#, xlim=c(0,3.5), ylim=range(0,1.5), xlab='Signal per Bead [au]', ylab='Density', main='')
+# plot(density(data$signal), col=rgb(1,1,1,0.5), xlim=c(0,3.5), ylim=range(0,1.5), xlab='Signal per Bead [au]', ylab='Density', main='')
 cols <- seq(0,1,length.out=length(HIVLevels)+1)
 i <- 1
-for(hiv in (HIVLevels[c(1,2,3,4,5)]))
+for(hiv in HIVLevels)
 {
      temp <- subset(data, HIV==hiv)
      if(i == 1)
      {
-          plot(density(data$signal), col=rgb(1,1,1,0.5), xlim=c(0,600), ylim=range(0,0.01), xlab='Microwell Signal [au]', ylab='Density', main='')
+          # If first time through loop, call plot
+          plot(density(data$signal), col=rgb(1,1,1,0.5), xlim=c(0,1.1), ylim=range(0,5), xlab='Microwell Signal [au]', ylab='Density', main='')
      }
      lines(density(temp$signal, adjust=0.75), col=gray(cols[i]), lwd=2)
      print(hiv)
@@ -128,6 +129,4 @@ legend('topright', legend=HIVLevels, col=gray(cols[1:length(HIVLevels)]), lwd=2)
 # temp <- subset(data, HIV=='3')
 # hist(temp$Ratio, col=gray(cols[3]), lwd=2, breaks=40)
 
-weird <- subset(data, Ratio < 0)
-print(weird)
 
